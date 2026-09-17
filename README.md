@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/logo.png" width="140" alt="PixelPack">
+</p>
+
 # PixelPack — 智能图片压缩打包工具
 
 把一个文件夹里的图片，压进一个**指定大小**的 ZIP 里。
@@ -6,6 +10,14 @@
 条件下，尽可能保留分辨率和画质。
 
 Windows 10 / 11 桌面程序，完全离线运行，不联网、不上传任何图片。
+
+---
+
+## 界面
+
+<p align="center">
+  <img src="images/screenshot.png" width="760" alt="PixelPack 主窗口">
+</p>
 
 ---
 
@@ -185,6 +197,7 @@ pixelpack/
 │  ├─ workers/                   后台线程封装
 │  └─ utils/                     大小格式化、临时目录、日志、打包资源定位
 ├─ tests/                        pytest 测试
+├─ images/                       README 用的图片（Logo、界面截图）
 ├─ assets/
 │  ├─ pixelpack.ico              可执行文件图标（打包时生成）
 │  └─ version_info.txt           Windows 版本信息（打包时生成，勿手改）
