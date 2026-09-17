@@ -1,0 +1,24 @@
+# Virtual environment (710 MB, rebuilt with `python -m venv .venv`)
+.venv/
+
+# PyInstaller output
+/build/
+/dist/
+
+# Editable-install metadata
+*.egg-info/
+
+# Generated at build time by scripts/make_icon.py and
+# scripts/make_version_info.py. Anchored with a leading slash on purpose: an
+# unanchored `assets/` would also match src/pixelpack/assets/, which holds the
+# About dialog's logo.png and is a real source file.
+/assets/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editors
+.vscode/
+.idea/
