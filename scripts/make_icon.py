@@ -1,9 +1,15 @@
-"""Generate ``assets/pixelpack.ico`` from code.
+"""Generate the application icon from code.
 
 Keeping the icon as a script rather than a binary blob means it can be
 regenerated, reviewed and tweaked like any other source file.
 
     python scripts/make_icon.py
+
+The output goes inside the package rather than beside the build. One file then
+serves both jobs: the build hands it to PyInstaller for the executable's
+embedded resource, and the application loads it at runtime for the window and
+taskbar icon — so the icon in Explorer and the icon in the title bar cannot be
+different pictures.
 """
 
 from __future__ import annotations
@@ -14,7 +20,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSETS = ROOT / "assets"
+ASSETS = ROOT / "src" / "pixelpack" / "assets"
 ICO_PATH = ASSETS / "pixelpack.ico"
 PNG_PATH = ASSETS / "pixelpack.png"
 

@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from . import APP_NAME, APP_TITLE, __version__
+from .ui.icons import app_icon
 from .ui.main_window import MainWindow
 from .ui.style import build_stylesheet
 from .utils.logging import get_logger, setup_logging
@@ -73,8 +74,12 @@ def _self_check(window: MainWindow, theme_name: str) -> int:
     logo = "已加载" if about.logo_loaded else "缺失"
     about.deleteLater()
 
+    icon = app.windowIcon() if app is not None else None
+    icon_state = "已加载" if icon is not None and not icon.isNull() else "缺失"
+
     print(f"{APP_NAME} {__version__}")
     print(f"主题 {theme_name}，样式表 {len(applied)} 字符")
+    print(f"应用图标 {icon_state}")
     print(f"窗口标题 {window.windowTitle()}")
     print(f"目标大小 {window.target_bytes()} 字节")
     print(f"压缩模式 {window.selected_mode().value}")
@@ -105,6 +110,9 @@ def main(argv: list[str] | None = None) -> int:
     app.setApplicationVersion(__version__)
     app.setOrganizationName(APP_NAME)
     app.setDesktopFileName("pixelpack")
+    # Set before any window is constructed so every one of them — main window,
+    # About, results — inherits it for the title bar and the taskbar.
+    app.setWindowIcon(app_icon())
 
     stylesheet, theme = build_stylesheet(app)
     app.setStyleSheet(stylesheet)
