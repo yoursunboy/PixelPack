@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pixelpack"
+# Read from pixelpack.VERSION so the version is written down exactly once.
+dynamic = ["version"]
+description = "PixelPack - Smart Image Archive Optimizer"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "PixelPack" }]
+keywords = ["image", "zip", "compression", "archive", "optimizer"]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Multimedia :: Graphics",
+]
+dependencies = [
+    "PySide6>=6.6",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pyinstaller>=6.0",
+]
+
+[project.gui-scripts]
+pixelpack = "pixelpack.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "pixelpack.VERSION" }
+
+[tool.setuptools.package-data]
+# Runtime assets travel with the package so they resolve in a source checkout
+# and inside a frozen bundle alike.
+pixelpack = ["assets/*.png", "assets/*.ico"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+filterwarnings = ["ignore::DeprecationWarning"]

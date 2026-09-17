@@ -1,0 +1,16 @@
+# Normalise text to LF in the repository, whatever the checkout platform.
+* text=auto
+
+# scripts/build_windows.ps1 starts with a UTF-8 BOM, and that BOM is load
+# bearing: Windows PowerShell 5.1 decodes a BOM-less .ps1 as the system ANSI
+# code page, which turns every Chinese message in it into mojibake and then
+# into a parser error. Git treats the BOM as ordinary leading content, so it
+# survives, but pinning the line endings here keeps the file byte-stable across
+# platforms and editors.
+*.ps1 text eol=crlf
+
+# Never run line-ending conversion over images.
+*.png binary
+*.ico binary
+*.jpg binary
+*.webp binary
