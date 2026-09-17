@@ -22,8 +22,9 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEventLoop, QMimeData, QPoint, Qt, QUrl  # noqa: E402
 from PySide6.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
 
+from pixelpack import COPYRIGHT  # noqa: E402
 from pixelpack.core.optimizer import Optimizer  # noqa: E402
 from pixelpack.models.settings import CompressionMode  # noqa: E402
 from pixelpack.ui import main_window as main_window_module  # noqa: E402
@@ -253,6 +254,45 @@ def test_advanced_panel_starts_collapsed(window):
 
     window.advanced_toggle.setChecked(False)
     assert window.advanced_panel.isHidden()
+
+
+# --------------------------------------------------------------------------
+# Status bar
+# --------------------------------------------------------------------------
+def test_the_status_bar_carries_the_copyright_on_the_right(qt_app, window):
+    """The copyright sits at the right, and a status message cannot cover it.
+
+    addPermanentWidget is what puts it there and keeps it out of showMessage()'s
+    way; addWidget would have parked it on the left where the first progress
+    update would have painted over it.
+    """
+    bar = window.statusBar()
+    labels = [label for label in bar.findChildren(QLabel) if label.text() == COPYRIGHT]
+    assert labels, "状态栏没有显示版权信息"
+
+    label = labels[0]
+
+    # show() is what activates the layout -- until then the status bar is still
+    # at its unlaid-out default geometry and every child position is a fiction.
+    # Resizing, processEvents and layout().activate() all leave it wrong.
+    window.resize(880, 720)
+    window.show()
+    qt_app.processEvents()
+    try:
+        # Measured against the right edge, not the midpoint: the label is only
+        # as wide as its own text, and that text is wide enough to reach past
+        # the middle of the bar. Where it ends is what says "on the right".
+        gap = bar.width() - (label.x() + label.width())
+        assert 0 <= gap < 40, f"版权信息应当贴着状态栏右侧（右边距 {gap}px）"
+
+        # A running message must not displace it.
+        bar.showMessage("正在优化…")
+        qt_app.processEvents()
+        assert label.isHidden() is False
+        assert label.text() == COPYRIGHT
+        assert bar.width() - (label.x() + label.width()) == gap, "状态消息挤动了版权信息"
+    finally:
+        window.hide()
 
 
 # --------------------------------------------------------------------------

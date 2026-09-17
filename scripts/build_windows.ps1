@@ -39,10 +39,13 @@ $LASTEXITCODE = 0
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $SrcDir      = Join-Path $ProjectRoot 'src'
 $AssetsDir   = Join-Path $ProjectRoot 'assets'
-$IconPath    = Join-Path $AssetsDir 'pixelpack.ico'
 # Runtime assets live inside the package so they resolve from a source checkout
 # and from a frozen bundle by the same expression (see utils/resources.py).
+# The icon is one of them now: PyInstaller embeds it in the executable for
+# Explorer, and the application loads the same file at runtime for the title
+# bar and taskbar.
 $PackageAssets = Join-Path $SrcDir 'pixelpack\assets'
+$IconPath      = Join-Path $PackageAssets 'pixelpack.ico'
 $VersionInfo   = Join-Path $AssetsDir 'version_info.txt'
 $BuildDir    = Join-Path $ProjectRoot 'build'
 $DistDir     = Join-Path $ProjectRoot 'dist'
@@ -182,13 +185,13 @@ try {
 }
 
 # ---------------------------------------------------------------------- icon
-Write-Step 'Preparing the application icon'
+Write-Step 'Generating the application icon'
 
-if (-not (Test-Path $IconPath)) {
-    Write-Note '图标不存在，正在生成…'
-    & $Python (Join-Path $PSScriptRoot 'make_icon.py')
-    if ($LASTEXITCODE -ne 0) { throw '图标生成失败。' }
-}
+# Regenerated on every build rather than only when missing. The icon is a
+# runtime asset now as well as a build input, so a stale file would ship inside
+# the bundle and show the wrong picture in the title bar.
+& $Python (Join-Path $PSScriptRoot 'make_icon.py')
+if ($LASTEXITCODE -ne 0) { throw '图标生成失败。' }
 if (-not (Test-Path $IconPath)) {
     throw "图标文件缺失：$IconPath"
 }
@@ -232,9 +235,8 @@ $arguments = @(
     '--distpath', $DistDir,
     '--workpath', $BuildDir,
     '--specpath', $BuildDir,
-    '--add-data', "$IconPath;assets",
-    # The About dialog's logo. The destination mirrors the package tree, which
-    # is what makes utils/resources.py work unchanged when frozen.
+    # The About dialog's logo and the window icon. The destination mirrors the
+    # package tree, which is what makes utils/resources.py work when frozen.
     '--add-data', "$PackageAssets;pixelpack/assets",
     '--onedir',
     # Trim the Qt modules a widget-only application never touches.
@@ -352,6 +354,37 @@ if ($ExeInfo.LegalCopyright -notlike '*HMYS Tech*') {
 }
 Write-Ok 'EXE 元数据校验通过'
 
+# ------------------------------------------------- the icon Explorer will draw
+# The icon has two independent homes and only one is covered further down. The
+# self-check proves the runtime one -- the .ico inside _internal that Qt loads
+# for the title bar, Alt-Tab and the running taskbar button. This proves the
+# one PyInstaller embedded from --icon, which is what Explorer draws and what
+# the taskbar shows before a window exists. Both were missing at one point.
+Add-Type -AssemblyName System.Drawing
+$iconBitmap = [System.Drawing.Icon]::ExtractAssociatedIcon($ExePath).ToBitmap()
+$iconGreen = 0
+for ($y = 0; $y -lt $iconBitmap.Height; $y++) {
+    for ($x = 0; $x -lt $iconBitmap.Width; $x++) {
+        $pixel = $iconBitmap.GetPixel($x, $y)
+        # The icon's brand green (76, 176, 118), with room for the anti-aliased
+        # edges where it blends into the background.
+        if ($pixel.A -gt 200 -and
+            [math]::Abs($pixel.R - 76) -lt 30 -and
+            [math]::Abs($pixel.G - 176) -lt 30 -and
+            [math]::Abs($pixel.B - 118) -lt 30) { $iconGreen++ }
+    }
+}
+$iconBitmap.Dispose()
+
+# Comparing against the generic Windows application icon would prove nothing:
+# it reports "different" even for executables carrying no icon at all, so the
+# check would pass vacuously. Counting the brand colour separates the cases --
+# rundll32, notepad and explorer all score 0.
+if ($iconGreen -lt 32) {
+    throw "可执行文件里没有嵌入应用图标（品牌色像素仅 $iconGreen，应约为 64）。"
+}
+Write-Ok "内嵌图标：32x32，品牌色像素 $iconGreen"
+
 $ExeSize = (Get-Item $ExePath).Length
 $TotalSize = (Get-ChildItem $AppDir -Recurse -File |
               Measure-Object -Property Length -Sum).Sum
@@ -390,8 +423,67 @@ if ($Zip) {
     Write-Step 'Packaging for distribution'
     $ZipPath = Join-Path $DistDir "$AppName-$AppVersion-win64.zip"
     if (Test-Path $ZipPath) { Remove-Item -Force $ZipPath }
-    Compress-Archive -Path $AppDir -DestinationPath $ZipPath
-    Write-Ok ("已生成 {0} ({1:N1} MB)" -f $ZipPath, ((Get-Item $ZipPath).Length / 1MB))
+
+    # [System.IO.Compression.ZipFile] rather than Compress-Archive. The cmdlet
+    # is slow, buffers far more than it needs, and -- the reason this step
+    # failed once -- throws UnauthorizedAccess when anything in the tree is
+    # briefly held open. A freshly written 98 MB of DLLs is exactly when
+    # Defender and the search indexer walk over it, so the first pass can lose
+    # that race even though nothing is actually wrong with the build.
+    #
+    # Entries are added one at a time rather than with CreateFromDirectory for
+    # the sake of the separators. Both it and Compress-Archive write Windows
+    # backslashes into the entry names; the ZIP spec (APPNOTE 4.4.17.1) calls
+    # for forward slashes. Windows is forgiving about this, everything else is
+    # not -- unpacking on macOS or Linux produces a single flat file whose name
+    # contains the backslashes instead of a folder tree.
+    # Both assemblies: ZipArchiveMode lives in System.IO.Compression, while
+    # ZipFile and ZipFileExtensions live in System.IO.Compression.FileSystem.
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $attempts = 3
+    for ($attempt = 1; ; $attempt++) {
+        try {
+            $stream = [System.IO.File]::Open($ZipPath, [System.IO.FileMode]::Create)
+            try {
+                $archive = New-Object System.IO.Compression.ZipArchive($stream, [System.IO.Compression.ZipArchiveMode]::Create)
+                try {
+                    foreach ($file in Get-ChildItem $AppDir -Recurse -File) {
+                        # The AppName\ prefix is what makes the archive unpack to
+                        # a folder rather than spraying 119 files into Downloads.
+                        $relative = $file.FullName.Substring($AppDir.Length + 1).Replace('\', '/')
+                        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                            $archive,
+                            $file.FullName,
+                            "$AppName/$relative",
+                            [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+                    }
+                } finally { $archive.Dispose() }
+            } finally { $stream.Dispose() }
+            break
+        } catch {
+            if ($attempt -ge $attempts) { throw }
+            Write-Note "打包被打断（$($_.Exception.Message)），正在重试 $attempt/$attempts…"
+            Start-Sleep -Seconds (2 * $attempt)
+        }
+    }
+
+    # Read it back. The entry count is cheap and catches a truncated write that
+    # a file-size check would happily accept.
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+    try {
+        $entryCount = $archive.Entries.Count
+        $separators = @($archive.Entries | Where-Object { $_.FullName.Contains([char]92) }).Count
+    } finally {
+        $archive.Dispose()
+    }
+    if ($entryCount -lt 100) {
+        throw "压缩包只包含 $entryCount 个条目，看起来不完整。"
+    }
+    if ($separators -gt 0) {
+        throw "压缩包里有 $separators 个条目使用了反斜杠分隔符，应当全部使用正斜杠。"
+    }
+    Write-Ok ("已生成 {0}（{1:N1} MB，{2} 个文件）" -f $ZipPath, ((Get-Item $ZipPath).Length / 1MB), $entryCount)
 }
 
 # --------------------------------------------------------------------- done

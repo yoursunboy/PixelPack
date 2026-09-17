@@ -180,7 +180,8 @@ pixelpack/
 ├─ src/pixelpack/
 │  ├─ app.py                     程序入口、命令行参数
 │  ├─ assets/
-│  │  └─ logo.png                关于窗口的 Logo，随包分发
+│  │  ├─ logo.png                关于窗口的 Logo，随包分发
+│  │  └─ pixelpack.ico           应用图标，随包分发（由 make_icon.py 生成）
 │  ├─ ui/
 │  │  ├─ main_window.py          主窗口
 │  │  ├─ about_dialog.py         关于窗口
@@ -199,7 +200,6 @@ pixelpack/
 ├─ tests/                        pytest 测试
 ├─ images/                       README 用的图片（Logo、界面截图）
 ├─ assets/
-│  ├─ pixelpack.ico              可执行文件图标（打包时生成）
 │  └─ version_info.txt           Windows 版本信息（打包时生成，勿手改）
 ├─ scripts/
 │  ├─ build_windows.ps1          打包成 PixelPack.exe
@@ -312,6 +312,24 @@ Python**。
 关于窗口的 Logo 放在 `src/pixelpack/assets/logo.png`，属于包内资源：源码运行时按
 `__file__` 找到它，打包后 PyInstaller 把包目录原样复制进 `_internal`，同一个相对
 路径依然成立，所以不需要额外的路径配置，也没有外部文件要跟 EXE 一起发。
+
+应用图标 `pixelpack.ico` 放在同一个目录，一份文件同时供两处使用，因为 Windows 的
+图标来自两个互不相干的地方：
+
+| 显示在哪里 | 来自哪里 |
+|---|---|
+| 资源管理器里的 EXE、窗口还没出现时的任务栏 | 可执行文件内嵌的资源（打包时 `--icon`） |
+| 标题栏、Alt-Tab、运行中的任务栏按钮 | `QApplication.setWindowIcon()` |
+
+只做前一项的表现是：资源管理器里图标正常，标题栏和任务栏却是 Qt 的默认图标——
+这正是当初的 bug。现在两者指向同一个文件，`app.py` 在创建任何窗口之前就调用
+`setWindowIcon`，主窗口、关于窗口、结果窗口一并继承。`--self-check` 会把图标的
+加载状态打出来，打包脚本据此确认内嵌资源没有在裁剪环节被误删。
+
+图标由 `scripts/make_icon.py` 用代码画出来，含 16 / 24 / 32 / 48 / 64 / 128 / 256
+七种尺寸——只给一张图让 Windows 自己缩放，是图标发虚的原因。生成的文件是**提交进
+仓库**的，这样刚 clone 下来就带着正确的图标；打包时每次都重新生成，所以发出去的
+那份不可能过期。`tests/test_icon.py` 会断言两者逐字节一致。
 
 `tests/test_about.py` 会断言界面源码里不出现版本字面量，并解析 `version_info.txt`
 核对公司名与版权信息，防止两边悄悄漂移。

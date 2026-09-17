@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import APP_NAME, __version__
+from .. import APP_NAME, COPYRIGHT, __version__
 from ..core.optimizer import STAGE_FINAL, STAGE_MESSAGES, STAGE_SCAN
 from ..models.result import OptimizationResult, ProgressUpdate
 from ..models.settings import (
@@ -110,6 +110,15 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar())
         self.statusBar().showMessage(f"就绪 · {APP_NAME} {__version__}")
+
+        # A permanent widget is laid out to the right of the message area and
+        # is never covered by showMessage(), so the copyright stays put while
+        # the left side reports what the optimiser is doing. QStatusBar hands
+        # the message area whatever is left over and elides it first, so this
+        # is what gives way when the window is narrow, not the copyright.
+        copyright_label = QLabel(COPYRIGHT)
+        copyright_label.setObjectName("Muted")
+        self.statusBar().addPermanentWidget(copyright_label)
 
     def _build_header(self) -> QWidget:
         box = QWidget()

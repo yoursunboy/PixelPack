@@ -26,7 +26,7 @@ __all__ = [
 
 #: The single place the version is written down. ``pyproject.toml`` declares it
 #: dynamic and reads it back from here, so there is no second copy to update.
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 #: Kept as an alias because ``python -m pixelpack --version`` and the packaging
 #: scripts have always used the dunder spelling.

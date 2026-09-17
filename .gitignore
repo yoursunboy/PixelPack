@@ -8,10 +8,14 @@
 # Editable-install metadata
 *.egg-info/
 
-# Generated at build time by scripts/make_icon.py and
-# scripts/make_version_info.py. Anchored with a leading slash on purpose: an
-# unanchored `assets/` would also match src/pixelpack/assets/, which holds the
-# About dialog's logo.png and is a real source file.
+# Generated at build time by scripts/make_version_info.py. Anchored with a
+# leading slash on purpose: an unanchored `assets/` would also match
+# src/pixelpack/assets/, which holds the About dialog's logo.png.
+#
+# The generated icon in src/pixelpack/assets/ is deliberately NOT listed here.
+# It is committed so a fresh checkout runs with the right icon in the title
+# bar, and the build regenerates it on every pass so the copy that ships can
+# never be stale. A test asserts the two agree.
 /assets/
 
 # Python caches
