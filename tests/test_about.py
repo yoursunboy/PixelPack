@@ -15,6 +15,7 @@ that parses ``assets/version_info.txt`` is what keeps them from drifting.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -105,6 +106,23 @@ def test_window_title_names_the_application(dialog):
     assert dialog.isModal()
 
 
+def test_readme_images_actually_resolve():
+    """Every relative <img src> in the README must exist in the repository.
+
+    A path that does not resolve renders as a broken image on GitHub, which
+    nobody notices until a reader mentions it.
+    """
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    referenced = re.findall(r'<img\s+src="([^"]+)"', readme)
+
+    assert referenced, "README 里没有引用任何图片"
+    for path in referenced:
+        assert not path.startswith(("http://", "https://")), (
+            f"README 图片应随仓库分发，而不是外链：{path}"
+        )
+        assert (REPO_ROOT / path).is_file(), f"README 引用的图片不存在：{path}"
+
+
 # ------------------------------------------------------------------ the logo
 def test_logo_asset_ships_inside_the_package():
     """Requirement: bundled as a project asset, not an external path."""
@@ -115,6 +133,22 @@ def test_logo_asset_ships_inside_the_package():
     # Under the package, not beside the script or at the repository root.
     assert path.parent == assets_dir()
     assert path.parent.parent.name == "pixelpack"
+
+
+def test_the_readme_logo_matches_the_packaged_one():
+    """images/logo.png is the README's copy of the same artwork.
+
+    The move left two files holding one picture. Updating only one of them
+    would leave the About dialog and the README showing different logos, and
+    nothing else would notice.
+    """
+    packaged = assets_dir() / "logo.png"
+    documentation = REPO_ROOT / "images" / "logo.png"
+
+    assert documentation.is_file(), "README 用的 images/logo.png 不见了"
+    assert documentation.read_bytes() == packaged.read_bytes(), (
+        "images/logo.png 与 src/pixelpack/assets/logo.png 不一致"
+    )
 
 
 def test_logo_is_loaded_and_sized_to_the_layout(dialog):
